@@ -7,7 +7,6 @@
 # transpile_js: true
 
 after_initialize do
-  puts 'after initialize alias'
 
   # Add link methods for user
   add_to_class(:user, :add_user_alias) do |user|
@@ -15,10 +14,15 @@ after_initialize do
     user.save_custom_fields
   end
 
+  # remove link methods for user
+  add_to_class(:user, :remove_user_alias) do |user|
+    user.custom_fields.delete "alias_for"
+    user.save_custom_fields
+  end
+
   # Finds all aliases for this user
   add_to_class(:user, :aliases) do
     record_id = self.id
-    puts custom_fields
     if custom_fields.include? 'alias_for'
       record_id = custom_fields['alias_for']
     end
