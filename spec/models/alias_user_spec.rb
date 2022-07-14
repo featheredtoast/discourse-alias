@@ -13,6 +13,11 @@ RSpec.describe ::User do
     let(:alias1) { Fabricate(:user) }
     let(:alias2) { Fabricate(:user) }
 
+    it "is unlinked by default" do
+      expect(user.aliases).to eq([])
+      expect(user.record_for_alias).to eq(user)
+    end
+
     it "can link and unlink" do
       user.add_user_alias alias1
       user.add_user_alias alias2

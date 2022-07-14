@@ -31,10 +31,15 @@ after_initialize do
 
   # Finds the underlying record for the current user
   add_to_class(:user, :record_for_alias) do
-    record_id = self.id
     if custom_fields.include? 'alias_for'
       record_id = custom_fields['alias_for']
+      return User.find_by(id: record_id)
     end
-    User.find_by(id: record_id)
+    self
+  end
+
+  add_to_class(:user, :change_trust_level!) do |level, opts = nil|
+    record = self.record_for_alias
+    Promotion.new(record).change_trust_level!(level, opts)
   end
 end
