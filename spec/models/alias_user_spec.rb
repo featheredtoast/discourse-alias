@@ -24,7 +24,7 @@ RSpec.describe ::User do
 
       expect(user.aliases).to eq([alias1, alias2])
 
-      user.remove_user_alias alias1
+      alias1.unmark_as_alias
 
       expect(user.aliases).to eq([alias2])
     end
