@@ -46,6 +46,14 @@ after_initialize do
     self
   end
 
+  # Checks if the current user record is an alias
+  add_to_class(:user, :is_alias?) do
+    if custom_fields.include? 'alias_for'
+      return true
+    end
+    false
+  end
+
   # Reading trust levels - read from base user record
   add_to_serializer(:user_card, :trust_level) do
     object.record_for_alias.trust_level
@@ -58,6 +66,56 @@ after_initialize do
         self.record_for_alias.has_trust_level_orig? level
       end
     end
+
+  end
+
+  reloadable_patch do
+    class ::Promotion
+      alias_method :review_orig, :review
+      alias_method :change_trust_level_orig!, :change_trust_level!
+
+      def review
+        puts "review override"
+        if @user&.is_alias?
+          puts "is alias!"
+          # We grab the max trust level to review
+          user = @user&.record_for_alias
+          return false if user.blank? || !user.manual_locked_trust_level.nil?
+          return false if user.trust_level >= TrustLevel[2]
+
+          # if alias' trust level is higher than base, level up our base user
+          if @user.trust_level > user.trust_level
+            puts "updating base trust level to #{@user.trust_level}"
+            base_promotion = new Promotion(user)
+            base_promotion.change_trust_level!(@user.trust_level)
+          end
+
+          review_method = :"review_tl#{[@user.trust_level, user.trust_level].max}"
+          # And then review based on the current alias.
+          return public_send(review_method) if respond_to?(review_method)
+          false
+        else
+          review_orig
+        end
+      end
+
+      def change_trust_level!(level, opts = {})
+        puts "change trust level override"
+        # We also change trust level on the base user when an alias is changed
+        # this keeps the alias changed on the "highest" trust changed to.
+        if @user&.is_alias?
+          if change_trust_level_orig!(level, opts)
+            user = @user&.record_for_alias
+            # TODO: don't know if this is what we should be doing here.
+            # We could just promote the base user record separately
+            base_promotion = new Promotion(user)
+            base_promotion.change_trust_level!
+          end
+        else
+          change_trust_level_orig!(level, opts)
+        end
+      end
+    end
   end
 
   # Calculating trust levels - needs to consider posts for all aliases as well?
@@ -66,4 +124,5 @@ after_initialize do
   # How about: after review, check to see if trust level is higher after, and promote base user if so
   # TL3 will need to be checked or updated.
   # manual TL pinnings will also need to affect root user as well.
+  # TL group promotions - affect only base user probably
 end
