@@ -75,9 +75,7 @@ after_initialize do
       alias_method :change_trust_level_orig!, :change_trust_level!
 
       def review
-        puts "review override"
         if @user&.is_alias?
-          puts "is alias!"
           # We grab the max trust level to review
           user = @user&.record_for_alias
           return false if user.blank? || !user.manual_locked_trust_level.nil?
@@ -85,12 +83,11 @@ after_initialize do
 
           # if alias' trust level is higher than base, level up our base user
           if @user.trust_level > user.trust_level
-            puts "updating base trust level to #{@user.trust_level}"
-            base_promotion = new Promotion(user)
+            base_promotion = Promotion.new(user)
             base_promotion.change_trust_level!(@user.trust_level)
           end
 
-          review_method = :"review_tl#{[@user.trust_level, user.trust_level].max}"
+          review_method = :"review_tl#{user.trust_level}"
           # And then review based on the current alias.
           return public_send(review_method) if respond_to?(review_method)
           false
@@ -100,7 +97,6 @@ after_initialize do
       end
 
       def change_trust_level!(level, opts = {})
-        puts "change trust level override"
         # We also change trust level on the base user when an alias is changed
         # this keeps the alias changed on the "highest" trust changed to.
         if @user&.is_alias?
@@ -108,8 +104,8 @@ after_initialize do
             user = @user&.record_for_alias
             # TODO: don't know if this is what we should be doing here.
             # We could just promote the base user record separately
-            base_promotion = new Promotion(user)
-            base_promotion.change_trust_level!
+            base_promotion = Promotion.new(user)
+            base_promotion.change_trust_level!(level, opts)
           end
         else
           change_trust_level_orig!(level, opts)

@@ -35,10 +35,10 @@ RSpec.describe ::User do
 
     context "one alias is tl2 ready" do
 
+      let!(:alias3) { Fabricate(:user, trust_level: TrustLevel[1], created_at: (SiteSetting.tl2_requires_time_spent_mins * 60).minutes.ago) }
+
       before do
-        alias1.trust_level = TrustLevel[1]
-        alias1.save!
-        stat = alias1.user_stat
+        stat = alias3.user_stat
         stat.topics_entered = SiteSetting.tl2_requires_topics_entered
         stat.posts_read_count = SiteSetting.tl2_requires_read_posts
         stat.time_read = SiteSetting.tl2_requires_time_spent_mins * 60
@@ -46,12 +46,17 @@ RSpec.describe ::User do
         stat.likes_received = SiteSetting.tl2_requires_likes_received
         stat.likes_given = SiteSetting.tl2_requires_likes_given
         SiteSetting.tl2_requires_topic_reply_count = 0
+
+        user.add_user_alias alias3
       end
 
       it "calculates the trust level based on alias activity" do
-        Promotion.new(alias1).review
-        expect(alias1.reload.trust_level).to eq(2)
-        expect(alias2.reload.trust_level).to eq(2)
+        Promotion.new(alias3).review
+        expect(alias3.reload.trust_level).to eq(2)
+        expect(user.reload.trust_level).to eq(2)
+        expect(user.has_trust_level?(TrustLevel[2])).to be_truthy
+        expect(alias1.reload.has_trust_level?(TrustLevel[2])).to be_truthy
+        expect(alias3.has_trust_level?(TrustLevel[2])).to be_truthy
       end
     end
   end
