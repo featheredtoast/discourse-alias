@@ -102,8 +102,8 @@ after_initialize do
         if @user&.is_alias?
           if change_trust_level_orig!(level, opts)
             user = @user&.record_for_alias
-            # TODO: don't know if this is what we should be doing here.
-            # We could just promote the base user record separately
+            # TODO: we should handle demotions separately, as we should
+            # "float" the base record to the next highest trust level alias.
             base_promotion = Promotion.new(user)
             base_promotion.change_trust_level!(level, opts)
           end
