@@ -98,18 +98,5 @@ RSpec.describe ::User do
         expect(user.custom_fields["alias_tl3_count"]).to eq("0")
       end
     end
-
-    context "one alias is tl3 ready" do
-
-      let!(:alias3) { Fabricate(:user, trust_level: TrustLevel[2], created_at: (SiteSetting.tl2_requires_time_spent_mins * 60).minutes.ago) }
-
-      before do
-        create_qualifying_tl3_stats(alias3)
-        user.add_user_alias alias3
-      end
-
-      it "calculates the trust level based on alias activity" do
-      end
-    end
   end
 end
