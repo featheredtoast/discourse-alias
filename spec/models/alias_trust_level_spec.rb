@@ -2,6 +2,20 @@
 require 'rails_helper'
 
 RSpec.describe ::User do
+
+  def create_qualifying_tl3_stats(user)
+    user.create_user_stat if user.user_stat.nil?
+    user.user_stat.update!(
+      days_visited: 1000,
+      topics_entered: 1000,
+      posts_read_count: 1000,
+      likes_given: 1000,
+      likes_received: 1000
+    )
+  end
+
+  subject(:run_job) { Jobs::Tl3Promotions.new.execute({}) }
+
   describe "aliased trust level" do
 
     let!(:user) do
@@ -57,6 +71,44 @@ RSpec.describe ::User do
         expect(user.has_trust_level?(TrustLevel[2])).to be_truthy
         expect(alias1.reload.has_trust_level?(TrustLevel[2])).to be_truthy
         expect(alias3.has_trust_level?(TrustLevel[2])).to be_truthy
+      end
+    end
+
+    context "with a new tl3 alias" do
+
+      let!(:alias3) { Fabricate(:user, trust_level: TrustLevel[3]) }
+      let!(:alias4) { Fabricate(:user, trust_level: TrustLevel[3]) }
+
+      it "correctly counts adding tl3 aliases" do
+        user.add_user_alias alias3
+        expect(alias3.reload.trust_level).to eq(3)
+        expect(user.reload.trust_level).to eq(3)
+        expect(user.custom_fields["alias_tl3_count"]).to eq("1")
+
+        user.add_user_alias alias4
+        expect(user.reload.trust_level).to eq(3)
+        expect(user.custom_fields["alias_tl3_count"]).to eq("2")
+
+        alias3.unmark_as_alias
+        expect(user.reload.trust_level).to eq(3)
+        expect(user.custom_fields["alias_tl3_count"]).to eq("1")
+
+        alias4.unmark_as_alias
+        expect(user.reload.trust_level).to eq(2)
+        expect(user.custom_fields["alias_tl3_count"]).to eq("0")
+      end
+    end
+
+    context "one alias is tl3 ready" do
+
+      let!(:alias3) { Fabricate(:user, trust_level: TrustLevel[2], created_at: (SiteSetting.tl2_requires_time_spent_mins * 60).minutes.ago) }
+
+      before do
+        create_qualifying_tl3_stats(alias3)
+        user.add_user_alias alias3
+      end
+
+      it "calculates the trust level based on alias activity" do
       end
     end
   end
