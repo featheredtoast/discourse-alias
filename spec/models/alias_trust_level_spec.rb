@@ -94,8 +94,8 @@ RSpec.describe ::User do
         expect(user.custom_fields["alias_tl3_count"]).to eq("1")
 
         alias4.unmark_as_alias
-        expect(user.reload.trust_level).to eq(2)
-        expect(user.custom_fields["alias_tl3_count"]).to eq("0")
+        expect(user.reload.trust_level).to eq(1)
+        expect(user.custom_fields["alias_tl3_count"]).to be_nil
       end
     end
   end

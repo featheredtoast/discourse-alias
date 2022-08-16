@@ -8,28 +8,38 @@
 
 after_initialize do
 
-  add_to_class(:user, :increment_alias_tl3_count) do
-    tl3_count = custom_fields["alias_tl3_count"].to_i
-    if tl3_count > 0
-      tl3_count = tl3_count + 1
-    else
-      tl3_count = 1
+  add_to_class(:user, :find_max_alias_tl) do
+    max_tl = 0
+    TrustLevel.valid_range.to_a.each do |trust_level|
+      if custom_fields["alias_tl#{trust_level}_count"].to_i > 0
+        max_tl = trust_level
+      end
     end
-    custom_fields["alias_tl3_count"] = tl3_count.to_s
-    save_custom_fields
-    tl3_count
+    max_tl
   end
 
-  add_to_class(:user, :decrement_alias_tl3_count) do
-    tl3_count = custom_fields["alias_tl3_count"].to_i
-    if tl3_count > 0
-      tl3_count = tl3_count - 1
+  add_to_class(:user, :increment_alias_tl_count) do |trust_level|
+    tl_count = custom_fields["alias_tl#{trust_level}_count"].to_i
+    if tl_count > 0
+      tl_count = tl_count + 1
     else
-      tl3_count = 0
+      tl_count = 1
     end
-    custom_fields["alias_tl3_count"] = tl3_count.to_s
+    custom_fields["alias_tl#{trust_level}_count"] = tl_count.to_s
     save_custom_fields
-    tl3_count
+    tl_count
+  end
+
+  add_to_class(:user, :decrement_alias_tl_count) do |trust_level|
+    tl_count = custom_fields["alias_tl#{trust_level}_count"].to_i
+    tl_count = tl_count - 1
+    if tl_count > 0
+      custom_fields["alias_tl#{trust_level}_count"] = tl_count.to_s
+    else
+      custom_fields.delete("alias_tl#{trust_level}_count")
+    end
+    save_custom_fields
+    tl_count
   end
 
   # Links a base user to an alias:
@@ -49,9 +59,7 @@ after_initialize do
       base_promotion.change_trust_level!(user.trust_level)
     end
 
-    if user.trust_level >= TrustLevel[3]
-      increment_alias_tl3_count
-    end
+    increment_alias_tl_count user.trust_level
   end
 
   # Remove linked base user for an alias user.
@@ -59,13 +67,11 @@ after_initialize do
   # alias_user.unmark_as_alias
   add_to_class(:user, :unmark_as_alias) do
 
-    if trust_level >= TrustLevel[3]
-      record = self.record_for_alias
-      tl3_count = record.decrement_alias_tl3_count
-      if tl3_count <= 0
-        base_demotion = Promotion.new(record)
-        base_demotion.change_trust_level!(TrustLevel[2])
-      end
+    record = self.record_for_alias
+    tl_count = record.decrement_alias_tl_count trust_level
+    if tl_count <= 0
+      base_demotion = Promotion.new(record)
+      base_demotion.change_trust_level!(record.find_max_alias_tl)
     end
 
     custom_fields.delete "alias_for"
@@ -150,20 +156,18 @@ after_initialize do
             new_level = @user.trust_level
             user = @user&.record_for_alias
 
-            # alias demotion - keep track of tl3, do not demote if tl3 references still exist
-            if old_level >= TrustLevel[3] && new_level < TrustLevel[3]
-              tl3_count = user.decrement_alias_tl3_count
-              # do not demote if we still have tl3 aliases
-              if tl3_count > 0
-                return
-              end
-            # alias promotion - increment
-            elsif old_level < TrustLevel[3] && new_level >= TrustLevel[3]
-              user.increment_alias_tl3_count
+            # keep track of trust levels, do not demote if there are still other aliases on the current tl
+            tl_old_count = user.decrement_alias_tl_count old_level
+            user.increment_alias_tl_count new_level
+
+            # find next trust level for base user
+            # Demotions: do not demote if we still have aliases on current
+            if old_level > new_level && tl_old_count > 0
+              return
             end
 
             base_promotion = Promotion.new(user)
-            base_promotion.change_trust_level!(level, opts)
+            base_promotion.change_trust_level!(user.find_max_alias_tl, opts)
           end
         else
           change_trust_level_orig!(level, opts)
