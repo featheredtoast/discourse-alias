@@ -104,6 +104,27 @@ after_initialize do
     false
   end
 
+  # Grab post actions for the entire alias. Used to combine all user actions
+  add_class_method(:post_action, :alias_counts_for) do |collection, user|
+    aliases = user.aliases
+    user_actions = {}
+    aliases.each do |user_alias|
+      user_actions = user_actions.deep_merge(PostAction.counts_for(collection, user_alias))
+    end
+    user_actions
+  end
+
+  add_to_class(:post_action_creator, :post_can_act?) do
+    guardian.post_can_act?(
+      @post,
+      @post_action_name,
+      opts: {
+        is_warning: @is_warning,
+        taken_actions: PostAction.alias_counts_for([@post].compact, @created_by)[@post&.id]
+      }
+    )
+  end
+
   # Reading trust levels - read from base user record
   add_to_serializer(:user_card, :trust_level) do
     object.record_for_alias.trust_level
